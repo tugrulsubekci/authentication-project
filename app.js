@@ -4,8 +4,10 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const encryption = require('mongoose-encryption');
-const md5 = require('md5');
+// const encryption = require('mongoose-encryption');
+// const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const app = express();
 
@@ -42,35 +44,51 @@ app.get("/register", (req, res) => {
 });
 
 app.post("/register", async (req, res) => {
-    const newUser = new User({
-        email: req.body.username,
-        password: md5(req.body.password)
-    });
-
-    await newUser.save()
-        .then(function (models) {
-            console.log(models);
-            res.render("secrets.ejs");
-        })
-        .catch(function (err) {
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+        if (err) {
             console.log(err);
-        });
+        }
+        else {
+            const newUser = new User({
+                email: req.body.username,
+                password: hash
+            });
+
+            newUser.save()
+                .then(function (models) {
+                    console.log(models);
+                    res.render("secrets.ejs");
+                })
+                .catch(function (err) {
+                    console.log(err);
+                });
+        }
+    }) 
+
+
+
 })
 
 app.post("/login", async (req, res) => {
     const email = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
 
     await User.findOne({email: email})
         .then((model) => {
             console.log(model);
-            if(password === model.password) {
-                res.render("secrets.ejs");
-            }
-            else {
-                console.log("authentication failed");
-            }
 
+            bcrypt.compare(password, model.password, function (err,result) {
+                if(err) {
+                    console.log(err + " ------> authentication failed")
+                }
+                else {
+                    if(result === true) {
+                        res.render("secrets.ejs");
+                    } else {
+                        console.log("authentication failed");
+                    }
+                }
+            })
         })
         .catch((err) => {
             console.error(err);
